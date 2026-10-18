@@ -6,14 +6,21 @@ namespace FcgNotificationsServerless;
 
 /// <summary>
 /// Substitui o container NotificationsAPI (que rodava 24/7 esperando eventos)
-/// por uma Azure Function acionada diretamente pela fila RabbitMQ
-/// "PaymentProcessed" - a mesma fila que o payments-api ja publica via
-/// MassTransit (ver fcg-payments-api/src/FCG.PaymentsAPI/Consumers/
-/// OrderPlacedConsumer.cs). Nao existe binding de trigger oficial da
-/// Microsoft para RabbitMQ no modelo isolated worker; o pacote
-/// Microsoft.Azure.WebJobs.Extensions.RabbitMQ (usado aqui) exige o
-/// modelo "in-process" classico, que ainda e totalmente suportado no
-/// Azure Functions v4.
+/// por uma Azure Function acionada diretamente por mensagens do RabbitMQ.
+///
+/// O payments-api publica o PaymentProcessedEvent num exchange (MassTransit,
+/// pub/sub). O catalog-api ja tem a PROPRIA fila "PaymentProcessed" ligada a
+/// esse exchange. Esta function usa uma fila DEDICADA
+/// ("notifications-payment-processed"), ligada ao mesmo exchange, para
+/// receber uma COPIA de cada evento. Ler da fila "PaymentProcessed" faria a
+/// function competir com o catalog-api (o RabbitMQ divide as mensagens entre
+/// consumidores da mesma fila) e o jogo nao entraria na biblioteca em parte
+/// das compras. A fila e o binding sao criados por infra/setup-rabbitmq.sh.
+///
+/// Nao existe binding de trigger oficial da Microsoft para RabbitMQ no
+/// modelo isolated worker; o pacote Microsoft.Azure.WebJobs.Extensions.RabbitMQ
+/// (usado aqui) exige o modelo "in-process" classico, ainda totalmente
+/// suportado no Azure Functions v4.
 /// </summary>
 public static class NotificationFunction
 {
@@ -28,10 +35,10 @@ public static class NotificationFunction
     /// </summary>
     [FunctionName("PaymentProcessedNotification")]
     public static void Run(
-        [RabbitMQTrigger("PaymentProcessed", ConnectionStringSetting = "RabbitMQConnection")] string messageBody,
+        [RabbitMQTrigger("notifications-payment-processed", ConnectionStringSetting = "RabbitMQConnection")] string messageBody,
         ILogger log)
     {
-        log.LogInformation("Mensagem recebida na fila PaymentProcessed");
+        log.LogInformation("Mensagem recebida na fila notifications-payment-processed");
 
         JObject envelope;
         try

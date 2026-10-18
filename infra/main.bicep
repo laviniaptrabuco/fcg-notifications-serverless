@@ -85,6 +85,12 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           value: 'dotnet'
         }
         {
+          // Obrigatorio para rodar .NET 8 no modelo in-process (o Core Tools
+          // avisa disso no "func start"). Sem isso o host nao carrega a app.
+          name: 'FUNCTIONS_INPROC_NET8_ENABLED'
+          value: '1'
+        }
+        {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: appInsights.properties.ConnectionString
         }

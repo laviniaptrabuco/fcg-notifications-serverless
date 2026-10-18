@@ -9,7 +9,8 @@ O container antigo consumia recursos computacionais o tempo todo, mesmo ocioso n
 ## Como funciona
 
 - **Trigger:** [`RabbitMQTrigger`](NotificationFunction.cs) do pacote `Microsoft.Azure.WebJobs.Extensions.RabbitMQ` — um trigger real, não polling: o runtime se inscreve como consumidor AMQP da fila e a function é invocada a cada mensagem publicada.
-- **Fila:** `PaymentProcessed`, a mesma fila que o `fcg-payments-api` já publica via MassTransit (`fcg-payments-api/src/FCG.PaymentsAPI/Consumers/OrderPlacedConsumer.cs`) — não foi criada uma fila nova só para o exercício.
+- **Evento:** o `fcg-payments-api` publica o `PaymentProcessedEvent` via MassTransit num *exchange* (pub/sub). O `fcg-catalog-api` já tem a sua própria fila (`PaymentProcessed`) ligada a esse exchange.
+- **Fila dedicada:** a Function lê de `notifications-payment-processed`, uma fila **própria** ligada ao mesmo exchange, para receber uma *cópia* de cada evento. Ler da fila `PaymentProcessed` faria a Function competir com o catalog-api (o RabbitMQ divide as mensagens entre consumidores da mesma fila) e parte das compras não entraria na biblioteca. A fila e o binding são criados por [`infra/setup-rabbitmq.sh`](infra/setup-rabbitmq.sh).
 - **Modelo:** *in-process* (`Microsoft.NET.Sdk.Functions`), porque o binding de trigger para RabbitMQ não existe no modelo isolated worker (só Storage Queue, Service Bus e Event Hub têm bindings isolated oficiais).
 
 ## Rodar localmente
@@ -17,11 +18,30 @@ O container antigo consumia recursos computacionais o tempo todo, mesmo ocioso n
 Requer [Azure Functions Core Tools v4](https://learn.microsoft.com/azure/azure-functions/functions-run-local) e RabbitMQ acessível (o `docker-compose.yml` da raiz já sobe um em `localhost:5672`).
 
 ```bash
+# 1. emulador de storage exigido pelo runtime do Functions (AzureWebJobsStorage)
+azurite --silent --location ./.azurite &
+
+# 2. fila dedicada + binding ao exchange do evento (rode depois que o catalog-api subiu)
+RABBITMQ_API=http://localhost:15672 bash infra/setup-rabbitmq.sh
+
+# 3. a function
 dotnet build
 func start
 ```
 
-`local.settings.json` (não versionado) já aponta para `amqp://guest:guest@localhost:5672`.
+Crie o `local.settings.json` (não versionado, contém conexões locais):
+
+```json
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "FUNCTIONS_INPROC_NET8_ENABLED": "1",
+    "RabbitMQConnection": "amqp://guest:guest@localhost:5672"
+  }
+}
+```
 
 ## Deploy no Azure (IaC)
 
