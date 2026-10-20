@@ -1,6 +1,8 @@
+> **FIAP Cloud Games (FCG)**: este repositório faz parte do projeto, com um repositório por componente. Guia central e lista de repositórios: [fcg-orchestration](https://github.com/laviniaptrabuco/fcg-orchestration#reposit%C3%B3rios-do-projeto). Substitui o `NotificationsAPI` da Fase 2 ([fcg-notifications-api](https://github.com/laviniaptrabuco/fcg-notifications-api)).
+
 # FCG Notifications — Serverless
 
-Substitui o container `NotificationsAPI` (que rodava 24/7 esperando eventos esporádicos) por uma **Azure Function** acionada diretamente pela fila RabbitMQ `PaymentProcessed`.
+Substitui o container `NotificationsAPI` (que rodava 24/7 esperando eventos esporádicos) por uma **Azure Function** acionada diretamente por mensagens do RabbitMQ (fila própria `notifications-payment-processed`, ligada ao exchange do `PaymentProcessedEvent`).
 
 ## Por que isso resolve o problema do TC
 
